@@ -8,6 +8,7 @@ Download Full Dataset Spreadsheet
 Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv
 This dataset is the bridge between Parcel ID Number (PIN), which is a combination of a Major and Minor ID, the Address (parsed out by address number, prefixes, street name, and suffixes)
 
+King County Department of Assessments
 Assessments Data Download
 https://info.kingcounty.gov/assessor/DataDownload/default.aspx
 https://aqua.kingcounty.gov/extranet/assessor/Parcel.zip
@@ -18,7 +19,24 @@ https://aqua.kingcounty.gov/extranet/assessor/Tax%20Data.zip
 Tax Data.zip
 This dataset has 9.6M tax records with an AcctNbr as unique ID. Still needing to find a link from this to either Parcel ID or address. See Tax Data.doc as readme.
 
+https://aqua.kingcounty.gov/extranet/assessor/Unit%20Breakdown.zip
+Unit Breakdown.zip
+PIN with bedroom, bathroom, sqft.
 
+https://aqua.kingcounty.gov/extranet/assessor/Residential%20Building.zip
+Residential Building.zip
+PIN with features of the property including sqft by floor, bathrooms, fireplaces, year built, etc.
+
+https://aqua.kingcounty.gov/extranet/assessor/Real%20Property%20Account.zip
+Real Property Account.zip
+PIN with tax appraisal values. This might end up being redundant if I use the Real Property Appraisal History.zip.
+
+https://aqua.kingcounty.gov/extranet/assessor/Real%20Property%20Sales.zip
+Real Property Sales.zip
+PIN with transaction history. There is a Principal Use column that might be helpful in determining if the person plans on flipping.
+
+
+data.Seattle.gov
 Building Permits
 https://data.seattle.gov/Permitting/Building-Permits/76t5-zqzr
 Building_permits.csv
