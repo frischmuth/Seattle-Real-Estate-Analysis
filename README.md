@@ -6,7 +6,7 @@ Original Proposed Methodology:
 Find houses that have been torn down and compare them to current houses. Higher similarity would indicate higher likelihood of redevelopment.
 The available city data only includes current structures, so this will not work.
 
-New Proposed Methodology:
+New Proposed Methodology (10/15, probably already changed):
 Use open building permits to identify houses that are currently undergoing the review process for demolition.
 Feature engineer to pull neighbor information, neighbors defined as sharing same Major parcel ID value.
 Feature engineer to try and find characteristics that might make a property appealing - value, lot size, age, how it compares to neighbors, etc
