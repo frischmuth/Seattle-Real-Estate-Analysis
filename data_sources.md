@@ -6,7 +6,7 @@ Parcels for King County with Address with Property Information / parcel address 
 https://gis-kingcounty.opendata.arcgis.com/datasets/parcels-for-king-county-with-address-with-property-information-parcel-address-area/data?geometry=-137.543%2C43.508%2C-107.462%2C48.828
 Download Full Dataset Spreadsheet
 Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv
-This dataset is the bridge between Parcel ID Number (PIN), which is a combination of a Major and Minor ID, the Address (parsed out by address number, prefixes, street name, and suffixes)
+This dataset is the bridge between Parcel ID Number (PIN), which is a combination of a Major and Minor ID, the Address (parsed out by address number, prefixes, street name, and suffixes), and AcctNmbr
 
 King County Department of Assessments
 Assessments Data Download
