@@ -10,15 +10,15 @@ postgreSQLConnection = alchemyEngine.connect()
 for filename in os.listdir('/Users/ross/Galvanize/Seattle-Real-Estate-Analysis/data/csv_to_sql/'):
     if filename[:5]=='EXTR_':
         clean_filename = filename[5:]
-    postgreSQLTable = clean_filename.split('.')[0]
+    postgreSQLTable = clean_filename.split('.')[0].lower()
     df = pd.read_csv('/Users/ross/Galvanize/Seattle-Real-Estate-Analysis/data/csv_to_sql/'+ filename,
-    low_memory=False, encoding='latin_1').head(0)
+                    low_memory=False, encoding='latin_1').head(0)
     try:
-        frame = df.to_sql(postgreSQLTable.lower(), postgreSQLConnection, if_exists='fail', index=False)
-        curr=conn.cursor()
-        query = 'copy (table) from (file) CSV Header;',postgreSQLTable, 
-        curr.execute(query, {'table':postgreSQLTable.lower(), 'file':filename})
-        curr.close()
+        frame = df.to_sql(postgreSQLTable, postgreSQLConnection, if_exists='fail', index=False,)
+        # curr=conn.cursor()
+        # query = 'copy (table) from (file) CSV Header;',postgreSQLTable, 
+        # curr.execute(query, {'table':postgreSQLTable, 'file':filename})
+        # curr.close()
     except ValueError as vx:
         print(vx)
     except Exception as ex:  
