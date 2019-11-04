@@ -35,6 +35,9 @@ https://aqua.kingcounty.gov/extranet/assessor/Real%20Property%20Sales.zip
 Real Property Sales.zip
 PIN with transaction history. There is a Principal Use column that might be helpful in determining if the person plans on flipping.
 
+https://aqua.kingcounty.gov/extranet/assessor/Value%20History.zip
+Value History.zip
+PIN with assessed value over time. Indicates times when the parcel splits or has other changes to the improvements. Needs a certain amount of filtering to ensure accuracy. (REASON = Revalue is generally the rows we would want to use)
 
 data.Seattle.gov
 Building Permits
