@@ -45,5 +45,49 @@ def get_parcels(filepath='data/EXTR_Parcel.csv'):
     parcels = parcels[parcels['DistrictName']=='SEATTLE']
     parcels = parcels.set_index('PIN')
 
+    parcels = parcels.drop(columns=['PropName','PlatName','PlatLot','PlatBlock','PropType','SpecArea','SpecSubArea',
+            'HBUAsIfVacant','HBUAsImproved','RestrictiveSzShape','DNRLease','TranspConcurrency'])
+
+    dummy_cols = ['Range', 'Township', 'Section', 'QuarterSection', 'Area',
+       'SubArea','DistrictName', 'LevyCode',
+       'CurrentZoning', 'PresentUse',
+       'SqFtLot', 'WaterSystem', 'SewerSystem', 'Access', 'Topography',
+       'StreetSurface', 'InadequateParking',
+       'PcntUnusable', 'Unbuildable', 'MtRainier', 'Olympics', 'Cascades',
+       'Territorial', 'SeattleSkyline', 'PugetSound', 'LakeWashington',
+       'LakeSammamish', 'SmallLakeRiverCreek', 'OtherView', 'WfntLocation',
+       'WfntFootage', 'WfntBank', 'WfntPoorQuality', 'WfntRestrictedAccess',
+       'WfntAccessRights', 'WfntProximityInfluence', 'TidelandShoreland',
+       'LotDepthFactor', 'TrafficNoise', 'AirportNoise', 'PowerLines',
+       'OtherNuisances', 'NbrBldgSites', 'Contamination']
+    
+    for col in dummy_cols:
+        parcels = pd.concat([parcels,pd.get_dummies(parcels[col], prefix=col,dummy_na=True)],axis=1).drop([col],axis=1)
+    
+    # Create Binary Columns
+    binary_cols = ['AdjacentGolfFairway', 'AdjacentGreenbelt', 'HistoricSite',
+        'CurrentUseDesignation', 'NativeGrowthProtEsmt', 'Easements',
+        'OtherDesignation', 'DeedRestrictions', 'DevelopmentRightsPurch',
+        'CoalMineHazard', 'CriticalDrainage', 'ErosionHazard', 'LandfillBuffer',
+        'HundredYrFloodPlain', 'SeismicHazard', 'LandslideHazard',
+        'SteepSlopeHazard', 'Stream', 'Wetland', 'SpeciesOfConcern',
+        'SensitiveAreaTract', 'WaterProblems', 'TranspConcurrency',
+        'OtherProblems']
+    for col in binary_cols:
+        parcels[col] = parcels[col].map(lambda x: True if x=='Y' else False)
+    
+    return parcels
+
 def get_units(filepath='data/EXTR_UnitBreakdown.csv'):
     units = pd.read_csv(filepath)
+
+
+    return units
+
+
+
+def get_res_bld(filepath):
+    res_build = pd.read_csv('data/EXTR_ResBldg.csv', low_memory=False)
+
+
+    return res_build
