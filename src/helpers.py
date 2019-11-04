@@ -13,13 +13,28 @@ def get_pending_demo_permits(filepath):
 
 def get_gis_data(filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
     gis = pd.read_csv(filepath, index_col='PIN', low_memory=False)
+    
+    # Limit to Seattle Residential
     gis = gis[gis['CTYNAME']=='SEATTLE']
     gis = gis[gis['PROPTYPE']=='R']
+    
+    # Clear out NaNs
+    # This first one might not be great, as it includes lots of vacant properties, but it also doesn't include add, lat, or lon
+    gis = gis[gis['SITETYPE'].notnull()]
+    gis = gis[gis['KCTP_STATE'].notnull()]
+    
+    # drop ACCNT_NUMBER - cannot tie to Seattle data
     gis = gis[['MAJOR', 'MINOR',  'SITETYPE', 'ADDR_FULL', 'LAT', 'LON', 
-                'KCTP_STATE', 'LOTSQFT', 'LEVYCODE', 'LEVY_JURIS', 'NEW_CONSTR', 'TAXVAL_RSN', 'APPRLNDVAL', 
-                'APPR_IMPR', 'TAX_LNDVAL', 'TAX_IMPR', 'ACCNT_NUM', 'KCTP_TAXYR', 'QTS', 'SEC', 'TWP', 'RNG', 'PRIMARY_ADDR', 
+                'KCTP_STATE', 'LOTSQFT', 'LEVYCODE', 'NEW_CONSTR', 'TAXVAL_RSN', 'APPRLNDVAL', 
+                'APPR_IMPR', 'TAX_LNDVAL', 'TAX_IMPR', 'QTS', 'SEC', 'TWP', 'RNG', 
                 'Shape_Length', 'Shape_Area', 'PROPTYPE', 'KCA_ZONING', 
-                'KCA_ACRES', 'PREUSE_CODE', 'PREUSE_DESC']]
+                'KCA_ACRES', 'PREUSE_DESC']]
+
+    # Create Dummy Columns
+    dummy_cols = ['SITETYPE', 'LEVYCODE', 'NEW_CONSTR', 'TAXVAL_RSN', 'QTS', 'SEC', 'TWP', 'RNG', 
+                'PROPTYPE', 'KCA_ZONING', 'PREUSE_DESC']
+    for col in dummy_cols:
+        gis = pd.concat([gis,pd.get_dummies(gis[col], prefix=col,dummy_na=True)],axis=1).drop([col],axis=1)
     return gis
     
 
