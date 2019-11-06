@@ -12,29 +12,32 @@ def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_P
     .appName("GetGISData")\
     .getOrCreate()
     
-    gis = get_gis_data()
-    gis_spark = spark.createDataFrame(gis)
+    gis_pd = get_gis_data()
+    gis = spark.createDataFrame(gis_pd)
     
-    cat_cols = ['SITETYPE', 'LEVYCODE', 'NEW_CONSTR', 'TAXVAL_RSN', 'QTS', 'SEC', 'TWP', 'RNG', 'PROPTYPE', 'KCA_ZONING', 'PREUSE_DESC']
+    cat_cols = ['SITETYPE', 'LEVYCODE', 'NEW_CONSTR', 'TAXVAL_RSN', 'QTS', 'SEC', 'TWP', 'RNG', 'KCA_ZONING', 'PREUSE_DESC']
+    cat_index = []
     dummies = []
     for col in cat_cols:
-        dummies.append(col+'vector')
+        cat_index.append(col+'_index')
+        dummies.append(col+'_dummy_vector')
     
     # Transforms all strings into indexed numbers
-    indexers = [StringIndexer(inputCol=column, outputCol=column+"_index").fit(df) for column in cat_cols]
+    indexers = [StringIndexer(inputCol=column, outputCol=column+"_index").fit(gis) for column in cat_cols]
     pipeline = Pipeline(stages=indexers)
-    df = pipeline.fit(df).transform(df)
+    gis = pipeline.fit(gis).transform(gis)
 
-    encoder = OneHotEncoderEstimator(inputCols=cat_cols,outputCols=dummies,extr)
-    model = encoder.fit(gis_spark)
-    gis_spark = model.transform(gis_spark)   
+    gis = gis.drop(*cat_cols)
+    encoder = OneHotEncoderEstimator(inputCols=cat_index,outputCols=dummies)
+    model = encoder.fit(gis)
+    gis = model.transform(gis)   
     
     
     
     
     
-    gis_spark.write.parquet('data/gis_parquet',mode='overwrite')
-    return gis_spark
+    gis.write.parquet('data/gis_parquet',mode='overwrite')
+    return gis
 
 
 
@@ -111,7 +114,7 @@ def get_parcels(filepath='data/EXTR_Parcel.csv'):
     binary_cols = ['AdjacentGolfFairway', 'AdjacentGreenbelt', 'HistoricSite',
         'CurrentUseDesignation', 'NativeGrowthProtEsmt', 'Easements',
         'OtherDesignation', 'DeedRestrictions', 'DevelopmentRightsPurch',
-        'CoalMineHazard', 'CriticalDrainage', 'ErosionHazard', 'LandfillBuffer',
+        'CoalMineHazard', 'CriticalDrainage', 'ErosionHazard', 'LangisillBuffer',
         'HundredYrFloodPlain', 'SeismicHazard', 'LandslideHazard',
         'SteepSlopeHazard', 'Stream', 'Wetland', 'SpeciesOfConcern',
         'SensitiveAreaTract', 'WaterProblems', 'TranspConcurrency',
