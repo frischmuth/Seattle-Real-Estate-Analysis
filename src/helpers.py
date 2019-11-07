@@ -10,6 +10,7 @@ def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_P
     .builder\
     .master('Local[4]')\
     .appName("Get_GIS_Data")\
+    .config("spark.master", "local")\
     .getOrCreate()
     
     # Initially read in pre-cleaned Pandas DataFrame into Spark DataFrame
@@ -49,7 +50,7 @@ def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_P
     # gis = gis.drop(*numerical_cols)
     
     # Combine all features into single vector 
-    ignore = ['PIN', 'MAJOR', 'MINOR', 'ADDR_FULL']
+    ignore = ['PIN', 'MAJOR', 'MINOR', 'ADDR_FULL', 'num_features']
     assembler = VectorAssembler(
     inputCols=[col for col in gis.columns if col not in ignore],
     outputCol='features')
