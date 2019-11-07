@@ -17,7 +17,7 @@ def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_P
     gis_pd = get_gis_data(filepath)
     gis = spark.createDataFrame(gis_pd)
     
-    # # Normalize numerical data
+    # Normalize numerical data
     numerical_cols = ['LAT','LON','LOTSQFT','APPRLNDVAL','APPR_IMPR','TAX_LNDVAL','TAX_IMPR','Shape_Length','Shape_Area']
     numerical_assembler = VectorAssembler(
     inputCols=numerical_cols,
@@ -47,10 +47,10 @@ def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_P
     # Drop categorical and index columns
     gis = gis.drop(*cat_cols)
     gis = gis.drop(*cat_index)
-    # gis = gis.drop(*numerical_cols)
+    gis = gis.drop(*numerical_cols)
     
     # Combine all features into single vector 
-    ignore = ['PIN', 'MAJOR', 'MINOR', 'ADDR_FULL', 'num_features']
+    ignore = ['PIN', 'MAJOR', 'MINOR', 'ADDR_FULL']
     assembler = VectorAssembler(
     inputCols=[col for col in gis.columns if col not in ignore],
     outputCol='features')
@@ -61,18 +61,80 @@ def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_P
     gis = gis.drop(*[col for col in gis.columns if col not in ignore])
     
     # Write to parquet - not sure if I will eventually open from this, but that's the idea
-    gis.write.parquet('data/gis_parquet',mode='overwrite')
+    # gis.write.parquet('data/gis_parquet',mode='overwrite')
     
     
     return gis
 
+def get_parcels_to_spark(filepath='data/EXTR_Parcel.csv'):
+    spark = SparkSession\
+    .builder\
+    .master('Local[4]')\
+    .appName("Get_Parcel_Data")\
+    .config("spark.master", "local")\
+    .getOrCreate()    
 
+    # Initially read in pre-cleaned Pandas DataFrame into Spark DataFrame
+    parcel_pd = get_parcels(filepath)
+    parcel = spark.createDataFrame(parcel_pd)
 
+    # Normalize numerical data
+    numerical_cols = ['PcntUnusable', 'WfntFootage', ]
+    numerical_assembler = VectorAssembler(
+    inputCols=numerical_cols,
+    outputCol='num_features')
+    parcel = numerical_assembler.transform(parcel)
 
+    parcel = StandardScaler(inputCol='num_features', outputCol='num_features_std').fit(parcel).transform(parcel)
 
+    # Create index and dummy_vector column names of categorical colums, eventually dropping categorical and index columns
+    cat_cols = ['Range', 'Township', 'Section', 'QuarterSection', 'Area',
+       'SubArea', 'LevyCode',
+       'CurrentZoning', 'PresentUse',
+       'SqFtLot', 'WaterSystem', 'SewerSystem', 'Access', 'Topography',
+       'StreetSurface', 'InadequateParking', 'MtRainier', 'Olympics', 'Cascades',
+       'Territorial', 'SeattleSkyline', 'PugetSound', 'LakeWashington', 'SmallLakeRiverCreek', 'OtherView', 'WfntLocation',
+        'WfntBank', 'WfntPoorQuality', 'WfntRestrictedAccess',
+       'WfntAccessRights',  'TidelandShoreland',
+       'LotDepthFactor', 'TrafficNoise', 'NbrBldgSites', 'Contamination', ]
 
+    cat_index = []
+    dummies = []
+    for col in cat_cols:
+        cat_index.append(col+'_index')
+        dummies.append(col+'_dummy_vector')
+    
+    # Create and populate categorical index columns
+    indexers = [StringIndexer(inputCol=column, outputCol=column+"_index").fit(parcel) for column in cat_cols]
+    cat_pipeline = Pipeline(stages=indexers)
+    parcel = cat_pipeline.fit(parcel).transform(parcel)
 
+    # Encode dummy_vector columns from categorical indeces
+    encoder = OneHotEncoderEstimator(inputCols=cat_index,outputCols=dummies)
+    model = encoder.fit(parcel)
+    parcel = model.transform(parcel)   
+    
+    # Drop categorical and index columns
+    parcel = parcel.drop(*cat_cols)
+    parcel = parcel.drop(*cat_index)
+    parcel = parcel.drop(*numerical_cols)
+    
+    # Combine all features into single vector 
+    ignore = ['PIN']
+    assembler = VectorAssembler(
+    inputCols=[col for col in parcel.columns if col not in ignore],
+    outputCol='features')
+    parcel = assembler.transform(parcel)
 
+    # Drop all columns that are now in the features column
+    ignore.append('features')
+    parcel = parcel.drop(*[col for col in parcel.columns if col not in ignore])
+    
+    # # Write to parquet - not sure if I will eventually open from this, but that's the idea
+    # # gis.write.parquet('data/gis_parquet',mode='overwrite')
+    
+    
+    return parcel
 
 
 def get_pending_demo_permits(filepath='data/Building_permits.csv'):
@@ -102,14 +164,14 @@ def get_gis_data(filepath='data/Parcels_for_King_County_with_Address_with_Proper
                 'KCTP_STATE', 'LOTSQFT', 'LEVYCODE', 'NEW_CONSTR', 'TAXVAL_RSN', 'APPRLNDVAL', 
                 'APPR_IMPR', 'TAX_LNDVAL', 'TAX_IMPR', 'QTS', 'SEC', 'TWP', 'RNG', 
                 'Shape_Length', 'Shape_Area', 'PROPTYPE', 'KCA_ZONING', 
-                'KCA_ACRES', 'PREUSE_DESC']]
+                'KCA_ACRES']]
 
     # Create Dummy Columns
     # dummy_cols = ['SITETYPE', 'LEVYCODE', 'NEW_CONSTR', 'TAXVAL_RSN', 'QTS', 'SEC', 'TWP', 'RNG', 
     #             'PROPTYPE', 'KCA_ZONING', 'PREUSE_DESC']
     # for col in dummy_cols:
     #     gis = pd.concat([gis,pd.get_dummies(gis[col], prefix=col,dummy_na=True)],axis=1).drop([col],axis=1)
-    return gis.head(1000)
+    return gis
     
 
 def get_parcels(filepath='data/EXTR_Parcel.csv'):
@@ -117,40 +179,28 @@ def get_parcels(filepath='data/EXTR_Parcel.csv'):
     parcels = parcels[(parcels.PropType=='R')]
     parcels['PIN'] = parcels['Major'].map(str).apply(lambda x: x.zfill(6)) + parcels['Minor'].map(str).apply(lambda x: x.zfill(4))
     parcels = parcels[parcels['DistrictName']=='SEATTLE']
-    parcels = parcels.set_index('PIN')
+    # parcels = parcels.set_index('PIN')
 
-    parcels = parcels.drop(columns=['PropName','PlatName','PlatLot','PlatBlock','PropType','SpecArea','SpecSubArea',
-            'HBUAsIfVacant','HBUAsImproved','RestrictiveSzShape','DNRLease','TranspConcurrency'])
+    parcels = parcels.drop(columns=['Major', 'Minor','PropName','PlatName','PlatLot','PlatBlock','PropType','SpecArea','SpecSubArea',
+            'HBUAsIfVacant','HBUAsImproved','RestrictiveSzShape','DNRLease','TranspConcurrency', 'DistrictName', 'LandfillBuffer'])
 
-    dummy_cols = ['Range', 'Township', 'Section', 'QuarterSection', 'Area',
-       'SubArea','DistrictName', 'LevyCode',
-       'CurrentZoning', 'PresentUse',
-       'SqFtLot', 'WaterSystem', 'SewerSystem', 'Access', 'Topography',
-       'StreetSurface', 'InadequateParking', 
-       'Unbuildable', 'MtRainier', 'Olympics', 'Cascades',
-       'Territorial', 'SeattleSkyline', 'PugetSound', 'LakeWashington',
-       'LakeSammamish', 'SmallLakeRiverCreek', 'OtherView', 'WfntLocation',
-        'WfntBank', 'WfntPoorQuality', 'WfntRestrictedAccess',
-       'WfntAccessRights',  'TidelandShoreland',
-       'LotDepthFactor', 'TrafficNoise', 'NbrBldgSites', 'Contamination']
+    parcels['Unbuildable'] = parcels['Unbuildable'].map(str)
     
-    # for col in dummy_cols:
-    #     parcels = pd.concat([parcels,pd.get_dummies(parcels[col], prefix=col,dummy_na=True)],axis=1).drop([col],axis=1)
-    
-    # Create Binary Columns
     binary_cols = ['AdjacentGolfFairway', 'AdjacentGreenbelt', 'HistoricSite',
         'CurrentUseDesignation', 'NativeGrowthProtEsmt', 'Easements',
         'OtherDesignation', 'DeedRestrictions', 'DevelopmentRightsPurch',
-        'CoalMineHazard', 'CriticalDrainage', 'ErosionHazard', 'LangisillBuffer',
+        'CoalMineHazard', 'CriticalDrainage', 'ErosionHazard',
         'HundredYrFloodPlain', 'SeismicHazard', 'LandslideHazard',
         'SteepSlopeHazard', 'Stream', 'Wetland', 'SpeciesOfConcern',
-        'SensitiveAreaTract', 'WaterProblems', 'TranspConcurrency',
-        'OtherProblems''WfntProximityInfluence','PowerLines', 
-       'OtherNuisances']
-    # for col in binary_cols:
-        # parcels[col] = parcels[col].map(lambda x: True if x=='Y' else False)
-    
+        'SensitiveAreaTract', 'WaterProblems',
+        'OtherProblems','WfntProximityInfluence','PowerLines', 
+        'OtherNuisances', 'OtherProblems', 'WfntProximityInfluence']
+
+    for col in binary_cols:
+        parcels[col] = parcels[col].apply(lambda x: 1 if x=='Y' else 0)
+
     return parcels
+
 
 def get_units(filepath='data/EXTR_UnitBreakdown.csv'):
     units = pd.read_csv(filepath)
