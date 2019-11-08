@@ -5,6 +5,24 @@ from pyspark.sql import SparkSession
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import StringIndexer, OneHotEncoderEstimator, VectorAssembler, Normalizer, StandardScaler
 
+def create_full_dataframe():
+
+    # Get the X vector
+    gis = gis_data_to_spark()
+    parcel = get_parcels_to_spark()
+
+    # Join into one dataframe
+    all_data = gis.alias('g').join(parcel.alias('p'), gis.PIN==parcel.PIN).select('g.PIN', 'G.MAJOR', 'G.MINOR', 'G.ADDR_FULL', 'g.gis_features', 'p.parcel_features', 'g.TARGET')
+
+    input_columns = ['gis_features', 'parcel_features']
+    assembler = VectorAssembler(
+    inputCols= input_columns,
+    outputCol='all_features')
+    all_data = assembler.transform(all_data)
+    all_data = all_data.drop(*input_columns)
+
+    return all_data
+
 def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
     spark = SparkSession\
     .builder\
@@ -27,7 +45,7 @@ def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_P
     gis = StandardScaler(inputCol='num_features', outputCol='num_features_std').fit(gis).transform(gis)
 
     # Create index and dummy_vector column names of categorical colums, eventually dropping categorical and index columns
-    cat_cols = ['KCTP_STATE', 'SITETYPE', 'LEVYCODE', 'NEW_CONSTR', 'TAXVAL_RSN', 'QTS', 'SEC', 'TWP', 'RNG', 'KCA_ZONING', 'PREUSE_DESC', 'PROPTYPE']
+    cat_cols = ['KCTP_STATE', 'SITETYPE', 'LEVYCODE', 'NEW_CONSTR', 'TAXVAL_RSN', 'QTS', 'SEC', 'TWP', 'RNG', 'KCA_ZONING', 'PROPTYPE', 'PREUSE_DESC']
     cat_index = []
     dummies = []
     for col in cat_cols:
@@ -50,14 +68,14 @@ def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_P
     gis = gis.drop(*numerical_cols)
     
     # Combine all features into single vector 
-    ignore = ['PIN', 'MAJOR', 'MINOR', 'ADDR_FULL']
+    ignore = ['PIN', 'MAJOR', 'MINOR', 'ADDR_FULL', 'TARGET']
     assembler = VectorAssembler(
     inputCols=[col for col in gis.columns if col not in ignore],
-    outputCol='features')
+    outputCol='gis_features')
     gis = assembler.transform(gis)
 
     # Drop all columns that are now in the features column
-    ignore.append('features')
+    ignore.append('gis_features')
     gis = gis.drop(*[col for col in gis.columns if col not in ignore])
     
     # Write to parquet - not sure if I will eventually open from this, but that's the idea
@@ -123,11 +141,11 @@ def get_parcels_to_spark(filepath='data/EXTR_Parcel.csv'):
     ignore = ['PIN']
     assembler = VectorAssembler(
     inputCols=[col for col in parcel.columns if col not in ignore],
-    outputCol='features')
+    outputCol='parcel_features')
     parcel = assembler.transform(parcel)
 
     # Drop all columns that are now in the features column
-    ignore.append('features')
+    ignore.append('parcel_features')
     parcel = parcel.drop(*[col for col in parcel.columns if col not in ignore])
     
     # # Write to parquet - not sure if I will eventually open from this, but that's the idea
@@ -152,6 +170,9 @@ def get_gis_data(filepath='data/Parcels_for_King_County_with_Address_with_Proper
     
     # Limit to Seattle Residential
     gis = gis[gis['CTYNAME']=='SEATTLE']
+    gis = gis[gis['QTS']!='  ']
+    gis = gis[gis['QTS'].notnull()]
+    gis['PREUSE_DESC'].fillna('NaN', inplace=True)
     # gis = gis[gis['PROPTYPE']=='R']
     
     # Clear out NaNs
@@ -164,19 +185,37 @@ def get_gis_data(filepath='data/Parcels_for_King_County_with_Address_with_Proper
                 'KCTP_STATE', 'LOTSQFT', 'LEVYCODE', 'NEW_CONSTR', 'TAXVAL_RSN', 'APPRLNDVAL', 
                 'APPR_IMPR', 'TAX_LNDVAL', 'TAX_IMPR', 'QTS', 'SEC', 'TWP', 'RNG', 
                 'Shape_Length', 'Shape_Area', 'PROPTYPE', 'KCA_ZONING', 
-                'KCA_ACRES']]
+                'KCA_ACRES', 'PREUSE_DESC']]
 
     # Create Dummy Columns
     # dummy_cols = ['SITETYPE', 'LEVYCODE', 'NEW_CONSTR', 'TAXVAL_RSN', 'QTS', 'SEC', 'TWP', 'RNG', 
     #             'PROPTYPE', 'KCA_ZONING', 'PREUSE_DESC']
     # for col in dummy_cols:
     #     gis = pd.concat([gis,pd.get_dummies(gis[col], prefix=col,dummy_na=True)],axis=1).drop([col],axis=1)
+    
+    # Get the y column
+    demo = get_pending_demo_permits()
+    gis['TARGET'] = gis['ADDR_FULL'].apply(lambda x: x.lower()).isin(demo['OriginalAddress1'].apply(lambda x: x.lower()))
+    
+    
+    # matches = []
+    # non_matches = []
+    # add_set = set(gis['ADDR_FULL'].apply(lambda x: x.lower()))
+    # for address in demo['OriginalAddress1']:
+    #     if address.lower() not in add_set:
+    #         gis['Demo'] = 0
+    #     else:
+    #         matches.append(address)
+    
+    
+    
+    
     return gis
     
 
 def get_parcels(filepath='data/EXTR_Parcel.csv'):
     parcels = pd.read_csv(filepath, encoding="Latin1")
-    parcels = parcels[(parcels.PropType=='R')]
+    # parcels = parcels[(parcels.PropType=='R')]
     parcels['PIN'] = parcels['Major'].map(str).apply(lambda x: x.zfill(6)) + parcels['Minor'].map(str).apply(lambda x: x.zfill(4))
     parcels = parcels[parcels['DistrictName']=='SEATTLE']
     # parcels = parcels.set_index('PIN')
@@ -184,7 +223,7 @@ def get_parcels(filepath='data/EXTR_Parcel.csv'):
     parcels = parcels.drop(columns=['Major', 'Minor','PropName','PlatName','PlatLot','PlatBlock','PropType','SpecArea','SpecSubArea',
             'HBUAsIfVacant','HBUAsImproved','RestrictiveSzShape','DNRLease','TranspConcurrency', 'DistrictName', 'LandfillBuffer'])
 
-    parcels['Unbuildable'] = parcels['Unbuildable'].map(str)
+    parcels['Unbuildable'] = parcels['Unbuildable'].apply(lambda x: 1 if x==True else 0)
     
     binary_cols = ['AdjacentGolfFairway', 'AdjacentGreenbelt', 'HistoricSite',
         'CurrentUseDesignation', 'NativeGrowthProtEsmt', 'Easements',
