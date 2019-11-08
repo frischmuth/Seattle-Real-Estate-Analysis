@@ -5,6 +5,30 @@ from pyspark.sql import SparkSession
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import StringIndexer, OneHotEncoderEstimator, VectorAssembler, Normalizer, StandardScaler
 
+from pyspark.ml.classification import LogisticRegression, RandomForestClassifier
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
+
+def run_model():
+    
+    data = create_full_dataframe()
+    # crossval = CrossValidator(
+    #             evaluator=BinaryClassificationEvaluator(),
+    #             numFolds=10)  # use 3+ folds in practice
+    
+    # cvModel = crossval.fit()
+
+    train, test = data.randomSplit([.7, .3])
+    rf = RandomForestClassifier(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
+    model = rf.fit(train)
+    predictions = model.transform(test)
+
+    evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
+    accuracy = evaluator.evaluate(predictions)
+    print("Test Error = %g" % (1.0 - accuracy))
+
+
+
 def create_full_dataframe():
 
     # Get the X vector
@@ -12,7 +36,7 @@ def create_full_dataframe():
     parcel = get_parcels_to_spark()
 
     # Join into one dataframe
-    all_data = gis.alias('g').join(parcel.alias('p'), gis.PIN==parcel.PIN).select('g.PIN', 'G.MAJOR', 'G.MINOR', 'G.ADDR_FULL', 'g.gis_features', 'p.parcel_features', 'g.TARGET')
+    all_data = gis.alias('g').join(parcel.alias('p'), gis.PIN==parcel.PIN).select('g.PIN', 'g.MAJOR', 'g.MINOR', 'g.ADDR_FULL', 'g.gis_features', 'p.parcel_features', 'g.TARGET')
 
     input_columns = ['gis_features', 'parcel_features']
     assembler = VectorAssembler(
