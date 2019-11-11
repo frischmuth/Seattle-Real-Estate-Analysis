@@ -19,13 +19,18 @@ def run_model():
     # cvModel = crossval.fit()
 
     train, test = data.randomSplit([.7, .3])
-    rf = RandomForestClassifier(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
-    model = rf.fit(train)
+    # rf = RandomForestClassifier(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
+    # model = rf.fit(train)
+    # predictions = model.transform(test)
+
+    lr = LogisticRegression(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
+    model = lr.fit(train)
     predictions = model.transform(test)
 
     evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
     accuracy = evaluator.evaluate(predictions)
     print("Test Error = %g" % (1.0 - accuracy))
+    return data, train, test
 
 
 
@@ -220,6 +225,8 @@ def get_gis_data(filepath='data/Parcels_for_King_County_with_Address_with_Proper
     # Get the y column
     demo = get_pending_demo_permits()
     gis['TARGET'] = gis['ADDR_FULL'].apply(lambda x: x.lower()).isin(demo['OriginalAddress1'].apply(lambda x: x.lower()))
+    gis['TARGET'] = gis['TARGET']*1
+
     
     
     # matches = []
