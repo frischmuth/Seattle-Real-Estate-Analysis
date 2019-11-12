@@ -9,30 +9,75 @@ from pyspark.ml.classification import LogisticRegression, RandomForestClassifier
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
-def run_model():
+
+
+# def run_model():
+    
+#     data = create_full_dataframe()
+#     numFolds = 10
+    
+#     lr = LogisticRegression(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
+#     evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
+    
+#     pipeline = Pipeline(stages=[lr])
+#     paramGrid = (ParamGridBuilder().build())
+
+#     crossval = CrossValidator(
+#                 estimator=lr,
+#                 # estimatorParamMaps=paramGrid,
+#                 evaluator=evaluator,
+#                 numFolds=numFolds)
+    
+#     cvModel = crossval.fit(data)
+#     prediction = cvModel.transform(data)
+
+#     # train, test = data.randomSplit([.7, .3])
+#     # # rf = RandomForestClassifier(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
+#     # # model = rf.fit(train)
+#     # # predictions = model.transform(test)
+
+    
+#     # model = lr.fit(train)
+#     # predictions = model.transform(test)
+
+#     # evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
+#     # accuracy = evaluator.evaluate(predictions)
+#     # print("Test Error = %g" % (1.0 - accuracy))
+#     return prediction
+
+def run_first_model():
     
     data = create_full_dataframe()
-    # crossval = CrossValidator(
-    #             evaluator=BinaryClassificationEvaluator(),
-    #             numFolds=10)  # use 3+ folds in practice
+    numFolds = 10
     
-    # cvModel = crossval.fit()
+    lr = LogisticRegression(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
+    evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
+    
+    # pipeline = Pipeline(stages=[lr])
+    # paramGrid = (ParamGridBuilder().build())
+
+    # crossval = CrossValidator(
+    #             estimator=lr,
+    #             # estimatorParamMaps=paramGrid,
+    #             evaluator=evaluator,
+    #             numFolds=numFolds)
+    
+    # cvModel = crossval.fit(data)
+    # prediction = cvModel.transform(data)
 
     train, test = data.randomSplit([.7, .3])
-    # rf = RandomForestClassifier(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
-    # model = rf.fit(train)
-    # predictions = model.transform(test)
+    # # rf = RandomForestClassifier(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
+    # # model = rf.fit(train)
+    # # predictions = model.transform(test)
 
-    lr = LogisticRegression(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
+    
     model = lr.fit(train)
     predictions = model.transform(test)
 
     evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
     accuracy = evaluator.evaluate(predictions)
     print("Test Error = %g" % (1.0 - accuracy))
-    return data, train, test
-
-
+    return predictions
 
 def create_full_dataframe():
 
@@ -50,7 +95,10 @@ def create_full_dataframe():
     all_data = assembler.transform(all_data)
     all_data = all_data.drop(*input_columns)
 
-    return all_data
+    # USE SMALL DATASET FOR PRACTICE. REMOVE!!!!!
+    small, large = all_data.randomSplit([.2,.8])
+
+    return small
 
 def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
     spark = SparkSession\
@@ -191,7 +239,7 @@ def get_pending_demo_permits(filepath='data/Building_permits.csv'):
     pending_demo = demo[(demo['StatusCurrent']!='Closed')
                         &(demo['StatusCurrent']!='Completed')
                         &(demo['OriginalAddress1'].notnull())]
-    pending_demo = pending_demo[[ 'OriginalAddress1', 'OriginalCity', 'OriginalState', 'OriginalZip', 'Latitude', 'Longitude']].copy()
+    # pending_demo = pending_demo[[ 'OriginalAddress1', 'OriginalCity', 'OriginalState', 'OriginalZip', 'Latitude', 'Longitude']].copy()
     return pending_demo
 
 def get_gis_data(filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
