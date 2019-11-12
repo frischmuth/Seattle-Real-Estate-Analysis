@@ -11,44 +11,47 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
 
 
-# def run_model():
+def run_model(numFolds = 10, 
+            gis_filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv',
+            parcels_filepath='data/EXTR_Parcel.csv',
+            permit_filepath='data/Building_permits.csv'
+            ):
     
-#     data = create_full_dataframe()
-#     numFolds = 10
+     
+    data = create_full_dataframe(gis_filepath, parcels_filepath, permit_filepath, numFolds)
     
-#     lr = LogisticRegression(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
-#     evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
+    rf = RandomForestClassifier(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
     
-#     pipeline = Pipeline(stages=[lr])
-#     paramGrid = (ParamGridBuilder().build())
+    # pipeline = Pipeline(stages=[lr])
+    # paramGrid = (ParamGridBuilder().build())
 
-#     crossval = CrossValidator(
-#                 estimator=lr,
-#                 # estimatorParamMaps=paramGrid,
-#                 evaluator=evaluator,
-#                 numFolds=numFolds)
+    # crossval = CrossValidator(
+    #             estimator=lr,
+    #             # estimatorParamMaps=paramGrid,
+    #             evaluator=evaluator,
+    #             numFolds=numFolds)
     
-#     cvModel = crossval.fit(data)
-#     prediction = cvModel.transform(data)
+    # cvModel = crossval.fit(data)
+    # prediction = cvModel.transform(data)
 
-#     # train, test = data.randomSplit([.7, .3])
-#     # # rf = RandomForestClassifier(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
-#     # # model = rf.fit(train)
-#     # # predictions = model.transform(test)
+    for i in range(0,numFolds):
+        train = data.filter(data.fold != i)
+        test = data.filter(data.fold == i)
+        model = rf.fit(train)
+        if i == 0:
+            predictions = model.transform(test)
+        else:
+            predictions = predictions.union(model.transform(test))
 
-    
-#     # model = lr.fit(train)
-#     # predictions = model.transform(test)
-
-#     # evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
-#     # accuracy = evaluator.evaluate(predictions)
-#     # print("Test Error = %g" % (1.0 - accuracy))
-#     return prediction
+    evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
+    accuracy = evaluator.evaluate(predictions)
+    # print("Test Error = %g" % (1.0 - accuracy))
+    return accuracy, predictions
 
 def run_first_model():
     
     data = create_full_dataframe()
-    numFolds = 10
+   
     
     lr = LogisticRegression(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
     evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
@@ -79,14 +82,14 @@ def run_first_model():
     print("Test Error = %g" % (1.0 - accuracy))
     return predictions
 
-def create_full_dataframe():
+def create_full_dataframe(gis_filepath, parcels_filepath, permit_filepath, numFolds):
 
     # Get the X vector
-    gis = gis_data_to_spark()
-    parcel = get_parcels_to_spark()
+    gis = gis_data_to_spark(numFolds, gis_filepath)
+    parcel = get_parcels_to_spark(parcels_filepath)
 
     # Join into one dataframe
-    all_data = gis.alias('g').join(parcel.alias('p'), gis.PIN==parcel.PIN).select('g.PIN', 'g.MAJOR', 'g.MINOR', 'g.ADDR_FULL', 'g.gis_features', 'p.parcel_features', 'g.TARGET')
+    all_data = gis.alias('g').join(parcel.alias('p'), gis.PIN==parcel.PIN).select('g.PIN', 'g.fold', 'g.MAJOR', 'g.MINOR', 'g.ADDR_FULL', 'g.gis_features', 'p.parcel_features', 'g.TARGET')
 
     input_columns = ['gis_features', 'parcel_features']
     assembler = VectorAssembler(
@@ -96,11 +99,11 @@ def create_full_dataframe():
     all_data = all_data.drop(*input_columns)
 
     # USE SMALL DATASET FOR PRACTICE. REMOVE!!!!!
-    small, large = all_data.randomSplit([.2,.8])
+    small, large = all_data.randomSplit([.01,.99])
 
     return small
 
-def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
+def gis_data_to_spark(numFolds, gis_filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
     spark = SparkSession\
     .builder\
     .master('Local[4]')\
@@ -109,7 +112,9 @@ def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_P
     .getOrCreate()
     
     # Initially read in pre-cleaned Pandas DataFrame into Spark DataFrame
-    gis_pd = get_gis_data(filepath)
+    gis_pd = get_gis_data(gis_filepath)
+    
+    gis_pd['fold'] = np.random.randint(0,numFolds,gis_pd.shape[0])
     gis = spark.createDataFrame(gis_pd)
     
     # Normalize numerical data
@@ -145,7 +150,7 @@ def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_P
     gis = gis.drop(*numerical_cols)
     
     # Combine all features into single vector 
-    ignore = ['PIN', 'MAJOR', 'MINOR', 'ADDR_FULL', 'TARGET']
+    ignore = ['PIN', 'MAJOR', 'MINOR', 'ADDR_FULL', 'TARGET', 'fold']
     assembler = VectorAssembler(
     inputCols=[col for col in gis.columns if col not in ignore],
     outputCol='gis_features')
@@ -161,7 +166,7 @@ def gis_data_to_spark(filepath='data/Parcels_for_King_County_with_Address_with_P
     
     return gis
 
-def get_parcels_to_spark(filepath='data/EXTR_Parcel.csv'):
+def get_parcels_to_spark(parcels_filepath='data/EXTR_Parcel.csv'):
     spark = SparkSession\
     .builder\
     .master('Local[4]')\
@@ -170,7 +175,7 @@ def get_parcels_to_spark(filepath='data/EXTR_Parcel.csv'):
     .getOrCreate()    
 
     # Initially read in pre-cleaned Pandas DataFrame into Spark DataFrame
-    parcel_pd = get_parcels(filepath)
+    parcel_pd = get_parcels(parcels_filepath)
     parcel = spark.createDataFrame(parcel_pd)
 
     # Normalize numerical data
@@ -232,18 +237,18 @@ def get_parcels_to_spark(filepath='data/EXTR_Parcel.csv'):
     return parcel
 
 
-def get_pending_demo_permits(filepath='data/Building_permits.csv'):
-    building_permits = pd.read_csv(filepath ,parse_dates=[10,11,12,13], infer_datetime_format=True)
+def get_pending_demo_permits(permit_filepath='data/Building_permits.csv'):
+    building_permits = pd.read_csv(permit_filepath ,parse_dates=[10,11,12,13], infer_datetime_format=True)
     res_bldg_prmts = building_permits[building_permits['PermitClassMapped']=='Residential'].copy()
-    demo = res_bldg_prmts[res_bldg_prmts['PermitTypeDesc']=='Demolition']
+    demo = res_bldg_prmts[((res_bldg_prmts['PermitTypeDesc']=='Demolition') | (res_bldg_prmts['PermitTypeMapped']=='Demolition'))].copy()
     pending_demo = demo[(demo['StatusCurrent']!='Closed')
                         &(demo['StatusCurrent']!='Completed')
                         &(demo['OriginalAddress1'].notnull())]
-    # pending_demo = pending_demo[[ 'OriginalAddress1', 'OriginalCity', 'OriginalState', 'OriginalZip', 'Latitude', 'Longitude']].copy()
+    pending_demo = pending_demo[[ 'OriginalAddress1', 'OriginalCity', 'OriginalState', 'OriginalZip', 'Latitude', 'Longitude']].copy()
     return pending_demo
 
-def get_gis_data(filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
-    gis = pd.read_csv(filepath, low_memory=False)
+def get_gis_data(gis_filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
+    gis = pd.read_csv(gis_filepath, low_memory=False)
     
     # Limit to Seattle Residential
     gis = gis[gis['CTYNAME']=='SEATTLE']
@@ -292,8 +297,8 @@ def get_gis_data(filepath='data/Parcels_for_King_County_with_Address_with_Proper
     return gis
     
 
-def get_parcels(filepath='data/EXTR_Parcel.csv'):
-    parcels = pd.read_csv(filepath, encoding="Latin1")
+def get_parcels(parcels_filepath='data/EXTR_Parcel.csv'):
+    parcels = pd.read_csv(parcels_filepath, encoding="Latin1")
     # parcels = parcels[(parcels.PropType=='R')]
     parcels['PIN'] = parcels['Major'].map(str).apply(lambda x: x.zfill(6)) + parcels['Minor'].map(str).apply(lambda x: x.zfill(4))
     parcels = parcels[parcels['DistrictName']=='SEATTLE']
