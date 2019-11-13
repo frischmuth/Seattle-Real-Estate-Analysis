@@ -17,7 +17,8 @@ def run_model(numFolds = 10,
             permit_filepath='data/Building_permits.csv'
             ):
     
-     
+
+    
     data = create_full_dataframe(gis_filepath, parcels_filepath, permit_filepath, numFolds)
     
     rf = RandomForestClassifier(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
@@ -101,15 +102,16 @@ def create_full_dataframe(gis_filepath, parcels_filepath, permit_filepath, numFo
     # USE SMALL DATASET FOR PRACTICE. REMOVE!!!!!
     small, large = all_data.randomSplit([.01,.99])
 
-    return small
+    return all_data
 
 def gis_data_to_spark(numFolds, gis_filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
-    spark = SparkSession\
-    .builder\
-    .master('Local[4]')\
-    .appName("Get_GIS_Data")\
-    .config("spark.master", "local")\
-    .getOrCreate()
+    # Comment out to only use initial SparkSession
+    # spark = SparkSession\
+    # .builder\
+    # .master('Local[4]')\
+    # .appName("Get_GIS_Data")\
+    # .config("spark.master", "local")\
+    # .getOrCreate()
     
     # Initially read in pre-cleaned Pandas DataFrame into Spark DataFrame
     gis_pd = get_gis_data(gis_filepath)
@@ -167,12 +169,13 @@ def gis_data_to_spark(numFolds, gis_filepath='data/Parcels_for_King_County_with_
     return gis
 
 def get_parcels_to_spark(parcels_filepath='data/EXTR_Parcel.csv'):
-    spark = SparkSession\
-    .builder\
-    .master('Local[4]')\
-    .appName("Get_Parcel_Data")\
-    .config("spark.master", "local")\
-    .getOrCreate()    
+    # Comment out to only use initial SparkSession
+    # spark = SparkSession\
+    # .builder\
+    # .master('Local[4]')\
+    # .appName("Get_Parcel_Data")\
+    # .config("spark.master", "local")\
+    # .getOrCreate()    
 
     # Initially read in pre-cleaned Pandas DataFrame into Spark DataFrame
     parcel_pd = get_parcels(parcels_filepath)
@@ -407,3 +410,14 @@ def get_res_bld(filepath):
 # labels_and_predictions = test_data.map(lambda x: x.label).zip(predictions)
 # acc = labels_and_predictions.filter(lambda x: x[0] == x[1]).count() / float(test_data.count())
 # print("Model accuracy: %.3f%%" % (acc * 100))
+
+if __name__ == '__main__':
+    spark = SparkSession\
+    .builder\
+    .master('Local[4]')\
+    .appName("Seattle_Real_Estate")\
+    .getOrCreate()     
+    
+    accuracy, prediction = run_model()
+    prediction.coalesce(1).write.csv('predictions.csv')
+    print(accuracy)
