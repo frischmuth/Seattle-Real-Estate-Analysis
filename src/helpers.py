@@ -9,12 +9,13 @@ from pyspark.ml.classification import LogisticRegression, RandomForestClassifier
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
+from pyspark.sql.functions import udf
+from pyspark.sql.types import FloatType
 
-
-def run_model(numFolds = 10, 
-            gis_filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv',
-            parcels_filepath='data/EXTR_Parcel.csv',
-            permit_filepath='data/Building_permits.csv'
+def run_model(numFolds = 2, 
+            gis_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv',
+            parcels_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/EXTR_Parcel.csv',
+            permit_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/Building_permits.csv'
             ):
     
 
@@ -51,8 +52,7 @@ def run_model(numFolds = 10,
 
 def run_first_model():
     
-    data = create_full_dataframe()
-   
+    data = create_full_dataframe(gis_filepath, parcels_filepath, permit_filepath, numFolds)   
     
     lr = LogisticRegression(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
     evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
@@ -100,9 +100,9 @@ def create_full_dataframe(gis_filepath, parcels_filepath, permit_filepath, numFo
     all_data = all_data.drop(*input_columns)
 
     # USE SMALL DATASET FOR PRACTICE. REMOVE!!!!!
-    small, large = all_data.randomSplit([.01,.99])
+    small, large = all_data.randomSplit([.005,.995])
 
-    return all_data
+    return small
 
 def gis_data_to_spark(numFolds, gis_filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
     # Comment out to only use initial SparkSession
@@ -414,10 +414,16 @@ def get_res_bld(filepath):
 if __name__ == '__main__':
     spark = SparkSession\
     .builder\
-    .master('Local[4]')\
     .appName("Seattle_Real_Estate")\
     .getOrCreate()     
     
     accuracy, prediction = run_model()
+    
+    split1_udf = udf(lambda value: value[0].item(), FloatType())
+    split2_udf = udf(lambda value: value[1].item(), FloatType())
+
+    prediction = prediction.select(*['PIN', 'MAJOR','MINOR','ADDR_FULL','TARGET','Prediction'], split1_udf('probability').alias('prob0'), split2_udf('probability').alias('prob1'))
+    
+    
     prediction.coalesce(1).write.csv('predictions.csv')
     print(accuracy)
