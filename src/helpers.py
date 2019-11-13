@@ -12,10 +12,10 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql.functions import udf
 from pyspark.sql.types import FloatType
 
-def run_model(numFolds = 2, 
+def run_model(numFolds = 10, 
             gis_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv',
             parcels_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/EXTR_Parcel.csv',
-            permit_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/Building_permits.csv'
+            permit_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/Building_Permits.csv'
             ):
     
 
@@ -102,7 +102,7 @@ def create_full_dataframe(gis_filepath, parcels_filepath, permit_filepath, numFo
     # USE SMALL DATASET FOR PRACTICE. REMOVE!!!!!
     small, large = all_data.randomSplit([.005,.995])
 
-    return small
+    return all_data
 
 def gis_data_to_spark(numFolds, gis_filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
     # Comment out to only use initial SparkSession
@@ -240,7 +240,7 @@ def get_parcels_to_spark(parcels_filepath='data/EXTR_Parcel.csv'):
     return parcel
 
 
-def get_pending_demo_permits(permit_filepath='data/Building_permits.csv'):
+def get_pending_demo_permits(permit_filepath='data/Building_Permits.csv'):
     building_permits = pd.read_csv(permit_filepath ,parse_dates=[10,11,12,13], infer_datetime_format=True)
     res_bldg_prmts = building_permits[building_permits['PermitClassMapped']=='Residential'].copy()
     demo = res_bldg_prmts[((res_bldg_prmts['PermitTypeDesc']=='Demolition') | (res_bldg_prmts['PermitTypeMapped']=='Demolition'))].copy()
@@ -422,8 +422,9 @@ if __name__ == '__main__':
     split1_udf = udf(lambda value: value[0].item(), FloatType())
     split2_udf = udf(lambda value: value[1].item(), FloatType())
 
-    prediction = prediction.select(*['PIN', 'MAJOR','MINOR','ADDR_FULL','TARGET','Prediction'], split1_udf('probability').alias('prob0'), split2_udf('probability').alias('prob1'))
+    prediction = prediction.select('PIN', 'MAJOR','MINOR','ADDR_FULL','TARGET','Prediction', split1_udf('probability').alias('prob0'), split2_udf('probability').alias('prob1'))
     
     
-    prediction.coalesce(1).write.csv('predictions.csv')
+    prediction.coalesce(1).write.csv('data/predictions', mode='overwrite')
+    prediction.write.parquet('data/gis_parquet',mode='overwrite')
     print(accuracy)
