@@ -43,7 +43,7 @@ def run_forest_model(gis_filepath, parcels_filepath, permit_filepath, numFolds=1
     predictions = predictions.select('PIN', 'MAJOR','MINOR','ADDR_FULL','TARGET','Prediction', split1_udf('probability').alias('prob0'), split2_udf('probability').alias('prob1'))
     
     timestr = time.strftime("%Y%m%d-%H%M%S")
-    prediction.toPandas().to_csv('predictions_'+timestr+'.csv').toPandas().to_csv('prediction.csv')
+    predictions.toPandas().to_csv('predictions_'+timestr+'.csv').toPandas().to_csv('prediction.csv')
 
     return predictions
 
