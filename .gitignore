@@ -1,3 +1,5 @@
+~$*
+test/*
 **/*.pyc
 .ipynb_checkpoints
 data/*
