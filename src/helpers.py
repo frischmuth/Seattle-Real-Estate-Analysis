@@ -98,9 +98,8 @@ def gis_data_to_spark(numFolds, gis_filepath='data/Parcels_for_King_County_with_
     gis_pd['fold'] = np.random.randint(0,numFolds,gis_pd.shape[0])
     gis = spark.createDataFrame(gis_pd)
     
-    # Create new feature columns
-    gis['value_per_area'] = gis['APPRLNDVAL']/gis['Shape_Area']
-    gis['improvement_over_land'] = gis['APPR_IMPR']/gis['APPRLNDVAL']
+
+
 
 
     # Normalize numerical data
@@ -263,6 +262,12 @@ def get_gis_data(gis_filepath='data/Parcels_for_King_County_with_Address_with_Pr
     # for col in dummy_cols:
     #     gis = pd.concat([gis,pd.get_dummies(gis[col], prefix=col,dummy_na=True)],axis=1).drop([col],axis=1)
     
+     # Create new feature columns
+    gis['value_per_area'] = gis['APPRLNDVAL']/gis['Shape_Area']
+    gis['improvement_over_land'] = gis['APPR_IMPR']/gis['APPRLNDVAL']
+    gis['improvement_over_total'] = gis['APPR_IMPR']/(gis['APPR_IMPR']+gis['APPRLNDVAL'])
+
+
     # Get the y column
     demo = get_pending_demo_permits()
     gis['TARGET'] = gis['ADDR_FULL'].apply(lambda x: x.lower()).isin(demo['OriginalAddress1'].apply(lambda x: x.lower()))
