@@ -1,9 +1,11 @@
-if __name__ = '__main__'
+if __name__ == '__main__':
 
 
     import pandas as pd
+    import numpy as np
     from pyspark.sql import SparkSession
     from pyspark.ml.feature import VectorAssembler
+    from pyspark.ml.classification import RandomForestClassifier
     from pyspark.sql.functions import udf
 
     spark = SparkSession\

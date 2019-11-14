@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import time
 
 from pyspark.sql import SparkSession
 from pyspark.ml import Pipeline
@@ -12,30 +13,21 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql.functions import udf
 from pyspark.sql.types import FloatType
 
-def run_model(numFolds = 10, 
-            gis_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv',
-            parcels_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/EXTR_Parcel.csv',
-            permit_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/Building_Permits.csv'
-            ):
+# Filepaths for running on AWS EMR
+gis_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'
+parcels_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/EXTR_Parcel.csv'
+permit_filepath='/home/hadoop/Seattle-Real-Estate-Analysis/data/Building_Permits.csv'
+numFolds = 10
+
+def run_forest_model(gis_filepath, parcels_filepath, permit_filepath, numFolds=10):
     
 
-    
+    # Individual functions below read in the csv, then convert from pandas to spark, then combine
     data = create_full_dataframe(gis_filepath, parcels_filepath, permit_filepath, numFolds)
     
     rf = RandomForestClassifier(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
     
-    # pipeline = Pipeline(stages=[lr])
-    # paramGrid = (ParamGridBuilder().build())
-
-    # crossval = CrossValidator(
-    #             estimator=lr,
-    #             # estimatorParamMaps=paramGrid,
-    #             evaluator=evaluator,
-    #             numFolds=numFolds)
-    
-    # cvModel = crossval.fit(data)
-    # prediction = cvModel.transform(data)
-
+    # Train and test ten random forests, each predicting 1/numFolds of the dataset
     for i in range(0,numFolds):
         train = data.filter(data.fold != i)
         test = data.filter(data.fold == i)
@@ -45,30 +37,23 @@ def run_model(numFolds = 10,
         else:
             predictions = predictions.union(model.transform(test))
 
-    evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
-    accuracy = evaluator.evaluate(predictions)
-    # print("Test Error = %g" % (1.0 - accuracy))
-    return accuracy, predictions
+    # Split the prediction vector into two columns to allow for writing to CSV
+    split1_udf = udf(lambda value: value[0].item(), FloatType())
+    split2_udf = udf(lambda value: value[1].item(), FloatType())
+    predictions = predictions.select('PIN', 'MAJOR','MINOR','ADDR_FULL','TARGET','Prediction', split1_udf('probability').alias('prob0'), split2_udf('probability').alias('prob1'))
+    
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    prediction.toPandas().to_csv('predictions_'+timestr+'.csv').toPandas().to_csv('prediction.csv')
 
-def run_first_model():
+    return predictions
+
+def run_regression_model():
     
     data = create_full_dataframe(gis_filepath, parcels_filepath, permit_filepath, numFolds)   
     
     lr = LogisticRegression(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
     evaluator = BinaryClassificationEvaluator(rawPredictionCol='Prediction', labelCol='TARGET')
     
-    # pipeline = Pipeline(stages=[lr])
-    # paramGrid = (ParamGridBuilder().build())
-
-    # crossval = CrossValidator(
-    #             estimator=lr,
-    #             # estimatorParamMaps=paramGrid,
-    #             evaluator=evaluator,
-    #             numFolds=numFolds)
-    
-    # cvModel = crossval.fit(data)
-    # prediction = cvModel.transform(data)
-
     train, test = data.randomSplit([.7, .3])
     # # rf = RandomForestClassifier(featuresCol='all_features', labelCol='TARGET', predictionCol='Prediction')
     # # model = rf.fit(train)
@@ -92,6 +77,7 @@ def create_full_dataframe(gis_filepath, parcels_filepath, permit_filepath, numFo
     # Join into one dataframe
     all_data = gis.alias('g').join(parcel.alias('p'), gis.PIN==parcel.PIN).select('g.PIN', 'g.fold', 'g.MAJOR', 'g.MINOR', 'g.ADDR_FULL', 'g.gis_features', 'p.parcel_features', 'g.TARGET')
 
+    # Create single feature column vector and drop originals
     input_columns = ['gis_features', 'parcel_features']
     assembler = VectorAssembler(
     inputCols= input_columns,
@@ -99,19 +85,12 @@ def create_full_dataframe(gis_filepath, parcels_filepath, permit_filepath, numFo
     all_data = assembler.transform(all_data)
     all_data = all_data.drop(*input_columns)
 
-    # USE SMALL DATASET FOR PRACTICE. REMOVE!!!!!
-    small, large = all_data.randomSplit([.005,.995])
+    # For testing, return small, for production, return all_data
+    # small, large = all_data.randomSplit([.005,.995])
 
     return all_data
 
 def gis_data_to_spark(numFolds, gis_filepath='data/Parcels_for_King_County_with_Address_with_Property_Information__parcel_address_area.csv'):
-    # Comment out to only use initial SparkSession
-    # spark = SparkSession\
-    # .builder\
-    # .master('Local[4]')\
-    # .appName("Get_GIS_Data")\
-    # .config("spark.master", "local")\
-    # .getOrCreate()
     
     # Initially read in pre-cleaned Pandas DataFrame into Spark DataFrame
     gis_pd = get_gis_data(gis_filepath)
@@ -119,8 +98,14 @@ def gis_data_to_spark(numFolds, gis_filepath='data/Parcels_for_King_County_with_
     gis_pd['fold'] = np.random.randint(0,numFolds,gis_pd.shape[0])
     gis = spark.createDataFrame(gis_pd)
     
+    # Create new feature columns
+    gis['value_per_area'] = gis['APPRLNDVAL']/gis['Shape_Area']
+    gis['improvement_over_land'] = gis['APPR_IMPR']/gis['APPRLNDVAL']
+
+
     # Normalize numerical data
-    numerical_cols = ['LAT','LON','LOTSQFT','APPRLNDVAL','APPR_IMPR','TAX_LNDVAL','TAX_IMPR','Shape_Length','Shape_Area']
+    numerical_cols = ['LAT','LON','LOTSQFT','APPRLNDVAL','APPR_IMPR','TAX_LNDVAL','TAX_IMPR',
+                        'Shape_Length','Shape_Area', 'value_per_area', 'improvement_over_land']
     numerical_assembler = VectorAssembler(
     inputCols=numerical_cols,
     outputCol='num_features')
@@ -343,88 +328,10 @@ def get_res_bld(filepath):
     return res_build
 
 
-
-
-
-# CSV_PATH = "data/mllib/2004_10000_small.csv"
-# APP_NAME = "Random Forest Example"
-# SPARK_URL = "local[*]"
-# RANDOM_SEED = 13579
-# TRAINING_DATA_RATIO = 0.7
-# RF_NUM_TREES = 10
-# RF_MAX_DEPTH = 30
-# RF_MAX_BINS = 2048
-# LABEL = "DepDelay15Min"
-# CATEGORICAL_FEATURES = ["UniqueCarrier", "Origin", "Dest"]
-
-# from pyspark import SparkContext
-# from pyspark.ml.feature import StringIndexer
-# from pyspark.ml import Pipeline
-# from pyspark.mllib.linalg import Vectors
-# from pyspark.mllib.tree import RandomForest
-# from pyspark.mllib.regression import LabeledPoint
-# from pyspark.sql import SparkSession
-# from time import *
-
-# # Creates Spark Session
-# spark = SparkSession.builder.appName(APP_NAME).master(SPARK_URL).getOrCreate()
-
-# # Reads in CSV file as DataFrame
-# # header: The first line of files are used to name columns and are not included in data. All types are assumed to be string.
-# # inferSchema: Automatically infer column types. It requires one extra pass over the data.
-# df = spark.read.options(header = "true", inferschema = "true").csv(CSV_PATH)
-
-# # Transforms all strings into indexed numbers
-# indexers = [StringIndexer(inputCol=column, outputCol=column+"_index").fit(df) for column in CATEGORICAL_FEATURES]
-# pipeline = Pipeline(stages=indexers)
-# df = pipeline.fit(df).transform(df)
-
-# # Removes old string columns
-# df = df.drop(*CATEGORICAL_FEATURES)
-
-# # Moves the label to the last column
-# df = StringIndexer(inputCol=LABEL, outputCol=LABEL+"_label").fit(df).transform(df)
-# df = df.drop(LABEL)
-
-# # Converts the DataFrame into a LabeledPoint Dataset with the last column being the label and the rest the features.
-# transformed_df = df.rdd.map(lambda row: LabeledPoint(row[-1], Vectors.dense(row[0:-1])))
-
-# # Splits the dataset into a training and testing set according to the defined ratio using the defined random seed.
-# splits = [TRAINING_DATA_RATIO, 1.0 - TRAINING_DATA_RATIO]
-# training_data, test_data = transformed_df.randomSplit(splits, RANDOM_SEED)
-
-# print("Number of training set rows: %d" % training_data.count())
-# print("Number of test set rows: %d" % test_data.count())
-
-# # Run algorithm and measure runtime
-# start_time = time()
-
-# model = RandomForest.trainClassifier(training_data, numClasses=2, categoricalFeaturesInfo={}, numTrees=RF_NUM_TREES, featureSubsetStrategy="auto", impurity="gini", maxDepth=RF_MAX_DEPTH, maxBins=RF_MAX_BINS, seed=RANDOM_SEED)
-
-# end_time = time()
-# elapsed_time = end_time - start_time
-# print("Time to train model: %.3f seconds" % elapsed_time)
-
-# # Make predictions and compute accuracy
-# predictions = model.predict(test_data.map(lambda x: x.features))
-# labels_and_predictions = test_data.map(lambda x: x.label).zip(predictions)
-# acc = labels_and_predictions.filter(lambda x: x[0] == x[1]).count() / float(test_data.count())
-# print("Model accuracy: %.3f%%" % (acc * 100))
-
 if __name__ == '__main__':
     spark = SparkSession\
     .builder\
     .appName("Seattle_Real_Estate")\
     .getOrCreate()     
     
-    accuracy, prediction = run_model()
-    
-    split1_udf = udf(lambda value: value[0].item(), FloatType())
-    split2_udf = udf(lambda value: value[1].item(), FloatType())
-
-    prediction = prediction.select('PIN', 'MAJOR','MINOR','ADDR_FULL','TARGET','Prediction', split1_udf('probability').alias('prob0'), split2_udf('probability').alias('prob1'))
-    
-    
-    prediction.coalesce(1).write.csv('data/predictions', mode='overwrite')
-    prediction.write.parquet('data/gis_parquet',mode='overwrite')
-    print(accuracy)
+    prediction = run_forest_model(gis_filepath=gis_filepath, parcels_filepath=parcels_filepath, permit_filepath=permit_filepath, numFolds=10)
