@@ -3,3 +3,5 @@ test/*
 **/*.pyc
 .ipynb_checkpoints
 data/*
+.gitignore
+presentations/*
