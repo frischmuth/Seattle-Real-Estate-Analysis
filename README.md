@@ -1,4 +1,22 @@
-# Seattle-Real-Estate-Analysis
+# Seattle Real Estate Analysis
+
+## Purpose
+
+Build a model to predict the probability that a building on any particular real estate parcel will be demolished in order to redevelop the land.
+
+An obvious business case for this model would be for a developer to identify properties that they could redevelop. This model is limited in that it does not consider if a particular property is currently available for purchase, nor is it capable of determining the value of potential new buildings.
+
+The question I was working with throughout the project was from the perspective of someone looking to move into a new neighborhood: 
+`What is the probability that I will be moving into a construction zone for the near future?`
+
+## Data Sources
+
+All data is publically available from 
+- [King County GIS](https://gis-kingcounty.opendata.arcgis.com/search?tags=property_OpenData)
+- [King County Department of Assessments](https://info.kingcounty.gov/assessor/DataDownload/default.aspx)
+- [Seattle Department of Construction and Inspections](https://data.seattle.gov/Permitting/Building-Permits/76t5-zqzr)
+
+
 
 This model is built to predict the probability that an area of the city will likely be an active construction zone for the near future.
 
