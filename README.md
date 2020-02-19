@@ -31,6 +31,8 @@ For training purposes, I assigned a probability of 1 for parcels for which a dem
 
 ## Results
 
+![ROC](https://github.com/frischmuth/Seattle-Real-Estate-Analysis/blob/master/ROC.png "ROC")
+
 ## Next Steps
 
 - Perform addition feature engineering and also feature analysis to further determine what parcel charactaristics are most indicative of redevelopment.
