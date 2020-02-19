@@ -31,6 +31,13 @@ For training purposes, I assigned a probability of 1 for parcels for which a dem
 
 ## Results
 
+It was a soft classifier, and the predicted probabilities ranged from .8% to 11.6%, with a mean of 10.2%.
+
+Below is the distribution of probabilities, separated by whether or not the property is scheduled for redevelopment.
+
+![Histogram](https://github.com/frischmuth/Seattle-Real-Estate-Analysis/blob/master/Histogram.png "Histogram")
+
+Below is the ROC Curve. The area under the curve is 0.73.
 ![ROC](https://github.com/frischmuth/Seattle-Real-Estate-Analysis/blob/master/ROC.png "ROC")
 
 ## Next Steps
